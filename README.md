@@ -1,12 +1,14 @@
 # chatbi-knowledge
 
 ChatBI 的知识语料仓库：表结构、指标口径、查询示例等，供 `database_schema_rag` 向量检索使用。
-这里是文档的**唯一权威源**——改文档只改这里，CI 会自动重建索引，无需碰应用代码。
+这里是文档的**唯一权威源**——改文档只改这里。
+
+> 说明：向量索引不在 CI 里重建（DashScope 国内端点从 GitHub Actions 海外 runner 连不上），
+> 改为**本地构建后提交**到应用仓库。流程见下文。
 
 ## 目录结构
 
 - `knowledge/*.md` — 进向量库的知识文档
-- `.github/workflows/rebuild-index.yml` — CI：文档变更后自动重建索引
 
 ## 如何新增 / 修改文档
 
@@ -22,7 +24,22 @@ ChatBI 的知识语料仓库：表结构、指标口径、查询示例等，供 
    正文……
    ```
 
-3. 提交并推送到 `main`。CI 自动触发，重建向量索引并产出 `schema-index` 产物。
+3. 提交并推送到 `main`。
+
+4. 在应用仓库 ChatBI 里，用这里作为语料**本地重建索引**：
+
+   ```bash
+   cd ~/python_projects/ChatBI
+   python tools/ingest_chromadb.py \
+     --docs-dir ~/python_projects/chatbi-knowledge/knowledge \
+     --out chroma_schema_db
+   ```
+
+5. 把重建出的 `chroma_schema_db/` 提交并推送到应用仓库：
+
+   ```bash
+   git add chroma_schema_db && git commit -m "重建 schema 索引" && git push
+   ```
 
 ## category 取值
 
@@ -32,11 +49,3 @@ ChatBI 的知识语料仓库：表结构、指标口径、查询示例等，供 
 | `reference` | 概览、表关系、查询示例、指标口径等参考文档 |
 
 缺失 `category` 的文件会被索引脚本跳过并告警。以后可按需扩展 `owner` / `version` / `expires_at` 等字段做版本与过期控制。
-
-## 本地验证（可选）
-
-在应用仓库 ChatBI 里，用这里作为语料重建一次：
-
-```bash
-python tools/ingest_chromadb.py --docs-dir /path/to/chatbi-knowledge/knowledge
-```
