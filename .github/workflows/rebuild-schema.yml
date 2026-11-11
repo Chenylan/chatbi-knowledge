@@ -53,7 +53,7 @@ jobs:
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
-          pip install langchain==0.3.3 langchain-openai==0.3.3 langchain-postgres==0.0.11 pyyaml python-dotenv
+          pip install langchain==0.3.3 langchain-openai==0.3.3 langchain-postgres==0.0.11 pyyaml python-dotenv greenlet
 
       - name: 重建 schema 向量索引
         env:
