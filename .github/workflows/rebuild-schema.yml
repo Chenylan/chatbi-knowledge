@@ -1,0 +1,69 @@
+# 重建 schema 向量索引（PostgreSQL + pgvector）
+#
+# 触发方式：
+#   1. 手动：Actions -> "rebuild-schema" -> Run workflow
+#   2. 自动：push 到 main 且改动 knowledge/** 时
+#
+# 注意：本 workflow 里的 PostgreSQL 是「临时 service 容器」，跑完即销毁，
+# 所以它主要用于「验证知识文档可被索引 + 国际版 DashScope 端点可用」。
+# 生产索引仍在你本机的 PG 里重建（README 的本地流程），或把下方 PG_* 改成托管 PG。
+name: rebuild-schema
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - 'knowledge/**'
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: admin
+          POSTGRES_PASSWORD: 123456
+          POSTGRES_DB: mydb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U admin -d mydb"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: 检出知识语料仓库（本仓库）
+        uses: actions/checkout@v4
+
+      - name: 检出应用仓库 ChatBI（含 ingest 脚本）
+        uses: actions/checkout@v4
+        with:
+          repository: Chenylan/ChatBI
+          path: chatbi
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install langchain==0.3.3 langchain-openai==0.3.3 langchain-postgres==0.0.11 pyyaml python-dotenv
+
+      - name: 重建 schema 向量索引
+        env:
+          # 国际版 DashScope key（已在仓库 Secrets 里配成 OPENAI_API_KEY）
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # 关键：国际版 key 必须打到国际端点，否则 401 invalid_api_key
+          OPENAI_API_BASE_URL: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+          PG_HOST: 127.0.0.1
+          PG_PORT: 5432
+          PG_USER: admin
+          PG_PASSWORD: 123456
+          PG_DATABASE: mydb
+        run: |
+          python chatbi/tools/ingest_pgvector.py --docs-dir knowledge
